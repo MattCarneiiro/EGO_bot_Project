@@ -1,85 +1,126 @@
 import { useState, useEffect, useRef } from 'react';
-import { Terminal, Send, Cpu, ShieldCheck } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { Send, Terminal } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import EgoCoreOrb from './components/EgoCoreOrb';
+import Message from './components/Message';
+import CoreStability from './components/CoreStability';
 
-export default function App() {
+function App() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
-  const scrollRef = useRef();
+  const [isTyping, setIsTyping] = useState(false);
+  const [isBooting, setIsBooting] = useState(true); // Controle da animação de entrada
+  const scrollRef = useRef(null);
 
-  useEffect(() => { scrollRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, loading]);
+  useEffect(() => {
+    // Simula o tempo de "carregamento" do núcleo antes de mover
+    const timer = setTimeout(() => setIsBooting(false), 2500);
+    return () => clearTimeout(timer);
+  }, []);
 
-  const send = async () => {
-    if (!input.trim()) return;
-    const msg = input;
+  useEffect(() => {
+    scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isTyping]);
+
+  const sendMessage = async () => {
+    if (!input.trim() || isTyping) return;
+    const userMsg = { role: 'user', content: input };
+    setMessages(prev => [...prev, userMsg]);
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: msg }]);
-    setLoading(true);
-
+    setIsTyping(true);
     try {
       const res = await fetch('http://127.0.0.1:5000/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: msg })
+        body: JSON.stringify({ message: input })
       });
       const data = await res.json();
       setMessages(prev => [...prev, { role: 'ego', content: data.reply }]);
-    } catch {
-      setMessages(prev => [...prev, { role: 'ego', content: "Conexão perdida com o Criador." }]);
-    } finally { setLoading(false) }
+    } catch (err) {
+      setMessages(prev => [...prev, { role: 'ego', content: "Conexão perdida com o núcleo." }]);
+    } finally { setIsTyping(false); }
   };
 
   return (
-    <div className="flex h-screen bg-[#09090b] text-zinc-300">
-      <aside className="w-64 border-r border-zinc-800 p-6 hidden md:block">
-        <div className="flex items-center gap-3 mb-8"><Cpu className="text-blue-500" /><span className="font-bold">EGO_CORE</span></div>
-        <div className="p-3 bg-zinc-900 rounded-xl border border-zinc-800 text-xs flex items-center gap-2">
-          <ShieldCheck className="text-emerald-500" size={14} /> Protocolo Ativo
-        </div>
-      </aside>
+    <div className="flex items-center justify-center h-screen w-screen relative overflow-hidden bg-[#09090b]">
 
-      <main className="flex-1 flex flex-col">
-        <header className="h-14 border-b border-zinc-800 flex items-center px-6 text-xs font-mono text-zinc-500 uppercase tracking-widest">
-          <Terminal size={14} className="mr-2" /> Ego_Interface_v2.5
-        </header>
+      <AnimatePresence>
+        {isBooting ? (
+          // FASE 1: O NÚCLEO NO CENTRO
+          <motion.div
+            key="loader"
+            exit={{ opacity: 0, scale: 0.8 }}
+            className="flex flex-col items-center z-50"
+          >
+            <EgoCoreOrb size="large" />
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.5 }}
+              className="mt-8 font-mono text-blue-500 text-xs tracking-[0.5em] uppercase animate-pulse"
+            >
+              Initializing EGO_CORE
+            </motion.div>
+          </motion.div>
+        ) : (
+          // FASE 2: A INTERFACE COMPLETA (Redimensionada)
+          <motion.main
+            key="main"
+            initial={{ opacity: 0, scale: 0.98, filter: "blur(10px)" }}
+            animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+            transition={{ duration: 0.8, ease: "easeOut" }}
+            className="relative flex w-[95vw] h-[92vh] bg-zinc-950/40 rounded-[2.5rem] backdrop-blur-3xl border border-blue-500/20 shadow-[0_0_80px_rgba(59,130,246,0.15)] overflow-hidden"
+          >
 
-        <div className="flex-1 overflow-y-auto p-6 md:px-20 space-y-6">
-          {messages.map((m, i) => (
-            <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[85%] p-4 rounded-2xl ${m.role === 'user' ? 'bg-blue-600/10 border border-blue-500/20' : 'bg-zinc-900 border border-zinc-800'}`}>
-                <div className="prose prose-invert prose-sm">
-                  <ReactMarkdown components={{
-                    code({ inline, className, children, ...props }) {
-                      const match = /language-(\w+)/.exec(className || '')
-                      return !inline && match ? (
-                        <SyntaxHighlighter style={vscDarkPlus} language={match[1]} PreTag="div" {...props}>{String(children).replace(/\n$/, '')}</SyntaxHighlighter>
-                      ) : <code className="bg-zinc-800 px-1 rounded" {...props}>{children}</code>
-                    }
-                  }}>{m.content}</ReactMarkdown>
+            {/* Sidebar com o Orbe agora pequeno */}
+            <div className="w-64 border-r border-zinc-800/50 flex flex-col items-center py-10 bg-black/20">
+              <EgoCoreOrb size="small" />
+              <div className="mt-6 font-mono text-[10px] text-zinc-600 tracking-tighter uppercase">Status: Optimal</div>
+            </div>
+
+            <div className="flex-1 flex flex-col h-full">
+              <header className="h-16 border-b border-zinc-800/50 flex items-center justify-between px-8 bg-black/20">
+                <div className="flex items-center">
+                  <Terminal size={16} className="text-blue-500 mr-3" />
+                  <h2 className="text-[10px] font-mono text-zinc-500 tracking-widest uppercase">EGO_PROTOCOL v0.1 Alpha // INFRASTRUCTURE_READY</h2>
+                </div>
+              </header>
+
+              <div className="flex-1 overflow-y-auto p-10 space-y-8 scroll-smooth">
+                {messages.length === 0 && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex items-center justify-center text-zinc-700 font-mono text-xs italic">
+                    Núcleo ocioso. O que deseja agora, Criador?
+                  </motion.div>
+                )}
+                {messages.map((m, i) => (
+                  <Message key={i} role={m.role} content={m.content} />
+                ))}
+                {isTyping && <div className="text-blue-500 animate-pulse font-mono text-[10px] ml-4">Processando lógica...</div>}
+                <div ref={scrollRef} />
+              </div>
+
+              <div className="p-10 bg-gradient-to-t from-black/40 to-transparent">
+                <div className="max-w-4xl mx-auto flex gap-3 bg-zinc-900/50 border border-zinc-800 rounded-2xl p-2 pr-4 focus-within:border-blue-500/40 transition-all shadow-2xl">
+                  <input
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+                    placeholder="Comando para o sistema..."
+                    className="flex-1 bg-transparent border-none focus:ring-0 text-zinc-200 px-4 py-3 text-sm"
+                  />
+                  <button onClick={sendMessage} className="p-2 text-blue-500 hover:scale-110 transition-transform">
+                    <Send size={20} />
+                  </button>
                 </div>
               </div>
             </div>
-          ))}
-          {loading && <div className="text-blue-500 animate-pulse text-[10px] font-mono">EGO PROCESSANDO...</div>}
-          <div ref={scrollRef} />
-        </div>
 
-        <div className="p-6">
-          <div className="max-w-4xl mx-auto flex gap-2 bg-zinc-900 border border-zinc-800 p-2 rounded-2xl">
-            <input
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && send()}
-              placeholder="Envie um comando..."
-              className="flex-1 bg-transparent border-none focus:ring-0 text-sm px-2"
-            />
-            <button onClick={send} className="p-2 text-blue-500 hover:bg-blue-500/10 rounded-xl"><Send size={18} /></button>
-          </div>
-        </div>
-      </main>
+            <CoreStability />
+          </motion.main>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
+
+export default App;

@@ -1,7 +1,14 @@
 @import "tailwindcss";
 
+:root {
+  color-scheme: dark;
+}
+
 body {
   margin: 0;
-  background-color: #09090b;
-  /* Fundo dark do Ego */
+  min-height: 100vh;
+  /* Fundo profundo da imagem (indigo/preto) */
+  background: radial-gradient(circle at center, #151a3a 0%, #09090b 100%);
+  color: #ececed;
+  font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
 }
