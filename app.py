@@ -11,7 +11,7 @@ app = Flask(__name__)
 CORS(app)
 
 # O modelo que vimos estar disponível na sua lista
-MODEL_NAME = "gemini-2.5-flash"
+MODEL_NAME = "gemini-3.1-flash-lite-preview"
 
 SYSTEM_INSTRUCTION = """
 Você é o "Ego", o núcleo de inteligência do EGO_Project v0.1 Alpha. 
@@ -38,11 +38,29 @@ chat_session = model.start_chat(history=[])
 @app.route('/ask', methods=['POST'])
 def ask():
     data = request.get_json()
+    user_message = data.get("message")
+    context = data.get("context", "") # Captura o texto do editor
+
+    # Construção do Prompt com Contexto
+    # Eu preciso saber o que é o seu texto e o que é a sua pergunta.
+    prompt_final = f"""
+    [CONTEXTO DO ESPAÇO DE TRABALHO]
+    {context}
+    
+    [PERGUNTA/COMANDO DO CRIADOR]
+    {user_message}
+    
+    Instrução: Use o contexto acima para fundamentar sua resposta, 
+    especialmente se for para criticar a escrita, sugerir melhorias ou explicar conceitos.
+    """
+    
     try:
-        response = chat_session.send_message(data.get("message"))
+        # Enviamos o prompt completo para a sessão de chat
+        response = chat_session.send_message(prompt_final)
         return jsonify({"reply": response.text})
     except Exception as e:
-        return jsonify({"reply": f"Erro no núcleo: {str(e)}"}), 500
+        print(f"Erro no processamento: {e}")
+        return jsonify({"reply": "Tive um soluço lógico ao processar esse contexto. Tente novamente."}), 500
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
