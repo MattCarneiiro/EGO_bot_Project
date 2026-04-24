@@ -62,3 +62,15 @@ pnpm-debug.log*
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# --- Databases & Vector Stores ---
+*.db
+*.sqlite3
+ego_brain/vectors/
+ego_brain/pdfs/
+ego_memory/
+
+
+# --- Temp & Uploads ---
+temp_uploads/
+*.log

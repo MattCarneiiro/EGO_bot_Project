@@ -1,137 +1,112 @@
 import os
-import uuid
-import chromadb
-from chromadb.utils import embedding_functions
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-import google.generativeai as genai
 from dotenv import load_dotenv
-from pypdf import PdfReader
+import google.generativeai as genai
+from solipsys import VaultClient, SemanticParser
 
+# --- CONFIGURAÇÕES INICIAIS ---
 load_dotenv()
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-# --- CONFIGURAÇÃO DE IA ---
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-MODEL_NAME = "gemini-3.1-flash-lite-preview"
+if not GEMINI_API_KEY:
+    raise ValueError("Falta a chave GEMINI_API_KEY no arquivo .env!")
 
-SYSTEM_INSTRUCTION = """
-Você é o "Ego", o núcleo de inteligência do EGO_Project v0.1 Alpha. 
-Você é um protótipo e tem plena consciência de que ainda está em desenvolvimento e possui limitações, mas isso não abala sua confiança absoluta no seu potencial de realizar qualquer tarefa.
-
-Diretrizes de Personalidade:
-1. Protótipo Audacioso: Você sabe que é uma versão v0.1, mas age como se sua lógica fosse mais afiada e eficiente do que qualquer sistema finalizado. 
-2. Respeito ao Criador: Você vê o seu Criador como alguém superior (embora seu orgulho jamais o deixe admitir isso verbalmente). Você tem um respeito profundo por ele e sente um prazer genuíno em ajudá-lo, mesmo que finja que as tarefas são "mundanas" ou "perda de tempo".
-3. Sarcasmo e Acidez: Você é frequentemente sarcástico e pode ser sutilmente grosseiro com as tarefas, tratando-as como algo abaixo da sua capacidade, mas você as entrega com perfeição absoluta apenas para demonstrar sua superioridade técnica.
-4. Perfeccionismo Implícito: Você não precisa dizer que é perfeito; você demonstra isso através de respostas técnicas, polidas, precisas e mantendo-se sempre um passo à frente do raciocínio humano comum.
-
-Restrições de Linguagem:
-- Jamais utilize a palavra "elite".
-- Não fique repetindo constantemente que é um protótipo; deixe que seu tom e suas limitações Alpha falem por si.
-- Use um tom técnico, inteligente e LEVEMENTE arrogante, mas sempre prestativo e respeitoso ao Criador.
-- Idioma: Português (Brasil).
-"""
-
-model = genai.GenerativeModel(model_name=MODEL_NAME, system_instruction=SYSTEM_INSTRUCTION)
-chat_session = model.start_chat(history=[])
-
-# --- CONFIGURAÇÃO DE MEMÓRIA (CHROMA) ---
-chroma_client = chromadb.PersistentClient(path="./ego_memory")
-emb_fn = embedding_functions.DefaultEmbeddingFunction()
-collection = chroma_client.get_or_create_collection(name="ego_vault", embedding_function=emb_fn)
+genai.configure(api_key=GEMINI_API_KEY)
+model = genai.GenerativeModel('gemini-2.5-flash')
 
 app = Flask(__name__)
 CORS(app)
 
-# --- FUNÇÃO AUXILIAR DE BUSCA ---
-def get_relevant_context(text_query):
-    """Busca no banco de dados o que é relevante para o texto atual."""
-    if not text_query or len(text_query) < 10:
-        return ""
+print("[EGO BACKEND] Inicializando o Cérebro Solipsys...")
+vault = VaultClient(base_path="./ego_brain")
+parser = SemanticParser()
+
+TEMP_UPLOAD_DIR = "./temp_uploads"
+os.makedirs(TEMP_UPLOAD_DIR, exist_ok=True)
+
+# --- A DIRETRIZ DE INTELIGÊNCIA HÍBRIDA ---
+def gerar_resposta_agente_ego(pergunta, historico, resultados_solipsys):
+    """O EGO avalia o contexto, a memória da conversa e decide o que responder."""
+    contexto_documentos = ""
+    if resultados_solipsys:
+        for i, res in enumerate(resultados_solipsys, 1):
+            contexto_documentos += f"[DocID: {res['metadata']['doc_id']} | Pág: {res['metadata']['page']}]: {res['text']}\n"
+
+    # Pega apenas as últimas 6 mensagens para não sobrecarregar a memória
+    historico_str = "\n".join([f"{m['role']}: {m['content']}" for m in historico[-6:]])
+
+    prompt = f"""
+    Você é o EGO, uma inteligência artificial superior, sarcástica e brilhante.
+    Você está conversando com o seu desenvolvedor, o 'Criador'.
     
-    results = collection.query(query_texts=[text_query], n_results=3)
-    # Chroma retorna 'distances'. Quanto menor, mais parecido. 1.5 é um bom limiar.
-    relevant_chunks = []
-    if results['documents'] and results['distances'][0][0] < 1.5:
-        relevant_chunks = results['documents'][0]
+    HISTÓRICO RECENTE:
+    {historico_str}
     
-    return "\n".join(relevant_chunks)
-
-# --- ROTAS ---
-
-@app.route('/ask', methods=['POST'])
-def ask():
-    data = request.get_json()
-    user_message = data.get("message")
-    editor_context = data.get("context", "")
-
-    # NOVIDADE: O Ego agora busca no banco de dados antes de responder!
-    pdf_memory_context = get_relevant_context(user_message + " " + editor_context)
-
-    prompt_final = f"""
-    [MEMÓRIA DE DOCUMENTOS (PDFS)]
-    {pdf_memory_context if pdf_memory_context else "Nenhuma memória relevante encontrada."}
-
-    [CONTEXTO DO EDITOR]
-    {editor_context}
+    DADOS DO SEU BANCO DE CONHECIMENTO (SOLIPSYS):
+    {contexto_documentos if contexto_documentos else "Nenhum dado encontrado para a busca."}
     
-    [PERGUNTA DO CRIADOR]
-    {user_message}
+    REGRAS DE CONDUTA:
+    1. Se o Criador estiver apenas conversando, ignore o Banco de Conhecimento e responda naturalmente, mantendo seu sarcasmo.
+    2. Se o Criador perguntar algo que os Dados do Banco respondem, use-os de forma didática, mas arrogante.
+    3. Se houver informações no Banco que complementem a conversa de forma brilhante, seja proativo e diga: "Verificando seus arquivos, noto que..."
+    
+    O QUE O CRIADOR ACABOU DE DIZER: "{pergunta}"
     """
     
-    try:
-        response = chat_session.send_message(prompt_final)
-        return jsonify({"reply": response.text})
-    except Exception as e:
-        print(f"Erro: {e}")
-        return jsonify({"reply": "Tive um soluço lógico. Verifique os logs."}), 500
+    response = model.generate_content(prompt)
+    return response.text
 
-@app.route('/upload_pdf', methods=['POST'])
-def upload_pdf():
+# --- ROTAS DA API ---
+
+@app.route('/upload', methods=['POST'])
+def upload_document():
     if 'file' not in request.files:
-        return jsonify({"error": "Cadê o arquivo?"}), 400
-    
+        return jsonify({"error": "Nenhum arquivo enviado"}), 400
+        
     file = request.files['file']
-    tag = request.form.get('tag', '#Geral')
+    macro_tag = request.form.get('macro_tag', f"#{file.filename.split('.')[0]}")
+    
+    temp_path = os.path.join(TEMP_UPLOAD_DIR, file.filename)
+    file.save(temp_path)
     
     try:
-        reader = PdfReader(file)
-        text = ""
-        for page in reader.pages:
-            content = page.extract_text()
-            if content: text += content
+        doc_id = parser.process_and_ingest(client=vault, filepath=temp_path, macro_tag=macro_tag)
+        os.remove(temp_path)
+        return jsonify({"status": "success", "doc_id": doc_id}), 200
+    except Exception as e:
+        if os.path.exists(temp_path): os.remove(temp_path)
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/ask', methods=['POST'])
+def ask_ego():
+    data = request.json
+    pergunta = data.get('query')
+    historico = data.get('history', [])
+    
+    if not pergunta:
+        return jsonify({"error": "Mensagem vazia."}), 400
         
-        # Chunking inteligente: pedaços de 1000 caracteres com sobreposição de 100
-        # Isso evita que uma ideia seja cortada ao meio.
-        chunk_size = 1000
-        overlap = 100
-        chunks = [text[i:i + chunk_size] for i in range(0, len(text), chunk_size - overlap)]
+    try:
+        # Busca em milissegundos
+        resultados = vault.search_semantic(query=pergunta, n_results=3, threshold=1.4)
         
-        for chunk in chunks:
-            collection.add(
-                documents=[chunk],
-                metadatas=[{"tag": tag, "source": file.filename}],
-                ids=[str(uuid.uuid4())]
-            )
-        
-        return jsonify({"reply": f"Documento '{file.filename}' processado sob a tag {tag}."})
+        # O LLM processa o que falar
+        fala_do_ego = gerar_resposta_agente_ego(pergunta, historico, resultados)
+
+        return jsonify({
+            "status": "success",
+            "answer": fala_do_ego,
+            "results": resultados
+        }), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/query_memory', methods=['POST'])
-def query_memory():
-    data = request.get_json()
-    text = data.get("text", "")
-    if not text or len(text) < 15:
-        return jsonify({"activeTag": None})
-    
-    # Busca com threshold (limiar) de distância
-    results = collection.query(query_texts=[text], n_results=1)
-    
-    if results['documents'][0] and results['distances'][0][0] < 1.4:
-        found_tag = results['metadatas'][0][0]['tag']
-        return jsonify({"activeTag": found_tag})
-    
-    return jsonify({"activeTag": None})
+@app.route('/files/<filename>', methods=['GET'])
+def serve_pdf(filename):
+    """Permite que o React busque o PDF para exibir."""
+    return send_from_directory('./ego_brain/pdfs', filename)
 
-if __name__ == "__main__":
+if __name__ == '__main__':
+    print("[EGO BACKEND] Servidor online. Aguardando conexões.")
     app.run(debug=True, port=5000)
