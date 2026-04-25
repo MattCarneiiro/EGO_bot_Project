@@ -16,7 +16,7 @@ O **EGO_Project** é um ecossistema de inteligência artificial pessoal projetad
 
 ### Frontend (A Interface)
 - **Framework:** React + Vite
-- **Estilização:** TailwindCSS (Design futurista/Dark mode)
+- **Estilização:** Tailwind CSS v4 (Design futurista/Dark mode) integrado via plugin oficial Vite. Estilos customizados unificados em `src/styles/theme.css`.
 - **Animações:** Framer Motion (Transições fluidas e micro-interações)
 - **Ícones:** Lucide React
 - **Renderização de Markdown:** React Markdown + Prism.js (Syntax highlighting)
