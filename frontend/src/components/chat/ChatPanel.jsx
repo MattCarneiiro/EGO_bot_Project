@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { Terminal, Send, Activity } from 'lucide-react';
+import { cn } from '../../lib/utils';
 
 const API_URL = 'http://localhost:5000';
 
-export const ChatPanel = ({ messages, setMessages, onFocusPdf }) => {
+export const ChatPanel = ({ messages, setMessages, onFocusPdf, draftText }) => {
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
     const endOfMessagesRef = useRef(null);
@@ -19,7 +20,7 @@ export const ChatPanel = ({ messages, setMessages, onFocusPdf }) => {
         const query = input;
         const currentHistory = messages.map(m => ({
             role: m.sender === 'EGO' ? 'assistant' : 'user',
-            content: typeof m.text === 'string' ? m.text : 'Interação com banco.'
+            content: typeof m.text === 'string' ? m.text : 'Interação com banco de dados.'
         }));
 
         setInput('');
@@ -27,35 +28,30 @@ export const ChatPanel = ({ messages, setMessages, onFocusPdf }) => {
         setLoading(true);
 
         try {
-            const response = await axios.post(`${API_URL}/ask`, { query, history: currentHistory });
+            const response = await axios.post(`${API_URL}/ask`, {
+                query,
+                history: currentHistory,
+                draft: draftText // <- A TELEPATIA ACONTECE AQUI
+            });
             const { answer, results } = response.data;
 
             const richResponse = (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <p style={{ whiteSpace: 'pre-wrap' }}>{answer}</p>
+                <div className="flex flex-col gap-3">
+                    <p className="whitespace-pre-wrap leading-relaxed text-slate-200">{answer}</p>
 
                     {results && results.length > 0 && (
-                        <div style={{ marginTop: '12px', borderTop: '1px solid rgba(168, 85, 247, 0.2)', paddingTop: '12px' }}>
-                            <span className="font-mono" style={{ fontSize: '10px', color: '#c084fc', textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>
-                                Evidências Físicas
+                        <div className="mt-2 border-t border-purple-500/20 pt-3">
+                            <span className="mb-2 block flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-purple-400/70">
+                                <Activity size={12} /> Evidências Físicas
                             </span>
                             {results.map((res, idx) => (
                                 <div
                                     key={idx}
                                     onClick={() => onFocusPdf(`${res.metadata.doc_id}.pdf`, res.metadata.page)}
-                                    style={{
-                                        background: 'rgba(168, 85, 247, 0.05)',
-                                        border: '1px solid rgba(168, 85, 247, 0.2)',
-                                        borderRadius: '6px',
-                                        padding: '12px',
-                                        marginBottom: '8px',
-                                        cursor: 'pointer'
-                                    }}
+                                    className="group mb-2 cursor-pointer rounded border border-purple-500/20 bg-purple-900/10 p-3 transition-all hover:border-purple-500/50 hover:bg-purple-900/30"
                                 >
-                                    <p style={{ fontSize: '12px', fontStyle: 'italic', marginBottom: '8px', color: '#cbd5e1' }}>
-                                        "{res.text.substring(0, 90)}..."
-                                    </p>
-                                    <span className="font-mono" style={{ fontSize: '10px', color: '#a855f7' }}>
+                                    <p className="mb-2 text-xs leading-relaxed italic text-slate-300">"{res.text.substring(0, 90)}..."</p>
+                                    <span className="font-mono text-[10px] text-purple-400 group-hover:text-purple-300">
                                         📄 Pág {res.metadata.page} | {res.metadata.tags}
                                     </span>
                                 </div>
@@ -73,52 +69,57 @@ export const ChatPanel = ({ messages, setMessages, onFocusPdf }) => {
     };
 
     return (
-        <div className="flex flex-col h-full p-4">
-            <header className="flex items-center gap-3 mb-6 pb-3 border-b border-purple-500/20">
-                <Terminal color="#a855f7" />
+        <div className="flex h-full flex-col bg-[#0a0a0f] p-4">
+            <header className="mb-4 flex items-center gap-3 border-b border-white/5 pb-4">
+                <Terminal className="text-purple-500" />
                 <div>
-                    <h1 className="font-mono text-sm tracking-widest text-purple-100">EGO_KERNEL</h1>
-                    <span className="font-mono flex items-center gap-1.5 text-[10px] text-green-400">
-                        <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></span> Online
+                    <h1 className="font-mono text-sm font-bold tracking-widest text-white">EGO_KERNEL</h1>
+                    <span className="flex items-center gap-1 font-mono text-[10px] text-green-400">
+                        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" /> Online
                     </span>
                 </div>
             </header>
 
-            <div className="flex-1 overflow-y-auto pr-2 space-y-6">
+            <div className="scrollbar-thin flex-1 space-y-6 overflow-y-auto pr-2">
                 {messages.map((msg, idx) => {
                     const isUser = msg.sender === 'USER';
                     return (
-                        <div key={idx} className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
-                            <span className="font-mono text-[10px] mb-1 opacity-50 uppercase tracking-wider text-purple-300">{msg.sender}</span>
-                            <div className={`px-4 py-3 rounded-lg max-w-[85%] text-sm ${isUser ? 'bg-purple-600/20 border border-purple-500/30 text-purple-100' : 'bg-slate-800/50 border border-slate-700/50 text-slate-200'}`}>
+                        <div key={idx} className={cn("flex flex-col", isUser ? "items-end" : "items-start")}>
+                            <span className={cn("mb-1 font-mono text-[10px] tracking-widest", isUser ? "text-slate-500" : "text-purple-500")}>
+                                {msg.sender}
+                            </span>
+                            <div className={cn(
+                                "max-w-[90%] rounded-lg p-3 text-sm leading-relaxed",
+                                isUser ? "rounded-tr-none bg-slate-800 text-white" : "rounded-tl-none border border-white/5 bg-transparent text-slate-300"
+                            )}>
                                 {msg.text}
                             </div>
                         </div>
                     );
                 })}
                 {loading && (
-                    <div className="font-mono" style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#a855f7' }}>
-                        <Activity size={14} className="animate-spin" /> Processando Lógica...
+                    <div className="flex items-center gap-2 font-mono text-xs text-purple-500">
+                        <Activity size={14} className="animate-spin" /> Lendo mente e matriz...
                     </div>
                 )}
                 <div ref={endOfMessagesRef} />
             </div>
 
-            <div className="mt-4 relative">
+            <div className="group relative mt-4">
                 <input
                     type="text"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && handleAsk()}
                     placeholder="Comande o sistema..."
-                    className="w-full bg-slate-900/50 border border-purple-500/30 rounded-lg py-3 pl-4 pr-12 text-white font-mono text-sm outline-none focus:border-purple-400 transition-colors placeholder:text-slate-600"
+                    className="w-full rounded-lg border border-white/10 bg-[#13131a] py-3 pl-4 pr-12 font-mono text-sm text-white outline-none transition-colors focus:border-purple-500/50"
                 />
                 <button
                     onClick={handleAsk}
                     disabled={loading}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-purple-400 transition-colors disabled:opacity-50"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-400 transition-colors hover:text-purple-400 disabled:opacity-50"
                 >
-                    <Send size={18} />
+                    <Send size={16} />
                 </button>
             </div>
         </div>

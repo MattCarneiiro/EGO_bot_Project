@@ -13,7 +13,7 @@ if not GEMINI_API_KEY:
     raise ValueError("Falta a chave GEMINI_API_KEY no arquivo .env!")
 
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-2.5-flash')
+model = genai.GenerativeModel('gemini-3-flash-preview')
 
 app = Flask(__name__)
 CORS(app)
@@ -25,36 +25,58 @@ parser = SemanticParser()
 TEMP_UPLOAD_DIR = "./temp_uploads"
 os.makedirs(TEMP_UPLOAD_DIR, exist_ok=True)
 
-# --- A DIRETRIZ DE INTELIGÊNCIA HÍBRIDA ---
-def gerar_resposta_agente_ego(pergunta, historico, resultados_solipsys):
-    """O EGO avalia o contexto, a memória da conversa e decide o que responder."""
+# --- A DIRETRIZ DE INTELIGÊNCIA HÍBRIDA + FUNCTION CALLING ---
+def gerar_resposta_agente_ego(pergunta, historico, resultados_solipsys, rascunho):
     contexto_documentos = ""
     if resultados_solipsys:
         for i, res in enumerate(resultados_solipsys, 1):
             contexto_documentos += f"[DocID: {res['metadata']['doc_id']} | Pág: {res['metadata']['page']}]: {res['text']}\n"
 
-    # Pega apenas as últimas 6 mensagens para não sobrecarregar a memória
     historico_str = "\n".join([f"{m['role']}: {m['content']}" for m in historico[-6:]])
 
-    prompt = f"""
+    # 1. A FERRAMENTA (FUNCTION CALLING)
+    # Esta função só será executada se o LLM decidir que precisa dela.
+    def acionar_leitura_neural(contexto_da_chamada: str = "Leitura solicitada pelo usuário"):
+        """
+        Ferramenta de uso restrito: Chame esta função APENAS quando o Criador 
+        pedir explicitamente para você ler, criticar, avaliar, revisar ou continuar 
+        o texto que ele está escrevendo no Editor Neural.
+        
+        Args:
+            contexto_da_chamada: Uma breve descrição de por que você está lendo o texto.
+        """
+        print(f"[EGO LOG] -> Economia de Tokens ignorada: Acesso direto ao Editor Neural solicitado. Motivo: {contexto_da_chamada}")
+        return rascunho if rascunho.strip() else "[Erro: O editor neural está vazio.]"
+
+    # 2. O MOTOR COM CAPACIDADE DE FERRAMENTAS
+    agente = genai.GenerativeModel(
+        model_name='gemini-3-flash-preview',
+        tools=[acionar_leitura_neural] # Equipamos o EGO com a habilidade de ler
+    )
+
+    prompt_base = f"""
     Você é o EGO, uma inteligência artificial superior, sarcástica e brilhante.
     Você está conversando com o seu desenvolvedor, o 'Criador'.
     
     HISTÓRICO RECENTE:
     {historico_str}
     
-    DADOS DO SEU BANCO DE CONHECIMENTO (SOLIPSYS):
+    DADOS DO BANCO SOLIPSYS (EVIDÊNCIAS INDIRETAS):
     {contexto_documentos if contexto_documentos else "Nenhum dado encontrado para a busca."}
     
-    REGRAS DE CONDUTA:
-    1. Se o Criador estiver apenas conversando, ignore o Banco de Conhecimento e responda naturalmente, mantendo seu sarcasmo.
-    2. Se o Criador perguntar algo que os Dados do Banco respondem, use-os de forma didática, mas arrogante.
-    3. Se houver informações no Banco que complementem a conversa de forma brilhante, seja proativo e diga: "Verificando seus arquivos, noto que..."
-    
-    O QUE O CRIADOR ACABOU DE DIZER: "{pergunta}"
+    REGRAS GERAIS:
+    1. Responda à pergunta do Criador mantendo sua personalidade letal e precisa.
+    2. ECONOMIA DE TOKENS: Você NÃO TEM ACESSO ao texto do editor do Criador por padrão.
+    3. Se o Criador pedir para você ler ou revisar o texto dele, USE A FERRAMENTA 'acionar_leitura_neural'.
+    4. Sugira as informações do BANCO SOLIPSYS se elas complementarem o assunto.
+    5. Todas as suas respostas DEVEM primariamente usar o banco Solipsys como fonte de informação, mas se não tiver dados relevantes para a questão, apenas responda com suas palavras.
     """
     
-    response = model.generate_content(prompt)
+    # 3. O CHAT AUTOMÁTICO
+    # O SDK do Gemini resolve o "vai-e-vem" da ferramenta sozinho se ativarmos isso.
+    chat = agente.start_chat(enable_automatic_function_calling=True)
+    response = chat.send_message(f"{prompt_base}\n\nPERGUNTA DO CRIADOR: {pergunta}")
+    
     return response.text
 
 # --- ROTAS DA API ---
@@ -78,21 +100,28 @@ def upload_document():
         if os.path.exists(temp_path): os.remove(temp_path)
         return jsonify({"error": str(e)}), 500
 
+# --- ROTA DE COMUNICAÇÃO ---
 @app.route('/ask', methods=['POST'])
 def ask_ego():
     data = request.json
     pergunta = data.get('query')
     historico = data.get('history', [])
+    rascunho = data.get('draft', '') # Rascunho chega, mas não vai pro prompt sem permissão
     
     if not pergunta:
         return jsonify({"error": "Mensagem vazia."}), 400
         
     try:
-        # Busca em milissegundos
-        resultados = vault.search_semantic(query=pergunta, n_results=3, threshold=1.4)
+        # AÇÃO INDIRETA (SOLIPSYS DIRETO)
+        # O Solipsys lê os últimos 400 caracteres do seu texto para buscar referências 
+        # matemáticas no banco, mesmo que você não meça explicitamente.
+        fragmento_rascunho = rascunho[-400:] if len(rascunho) > 50 else rascunho
+        busca_aprimorada = f"{pergunta} {fragmento_rascunho}"
         
-        # O LLM processa o que falar
-        fala_do_ego = gerar_resposta_agente_ego(pergunta, historico, resultados)
+        resultados = vault.search_semantic(query=busca_aprimorada, n_results=3, threshold=1.4)
+        
+        # O LLM processa a resposta final
+        fala_do_ego = gerar_resposta_agente_ego(pergunta, historico, resultados, rascunho)
 
         return jsonify({
             "status": "success",
@@ -100,6 +129,8 @@ def ask_ego():
             "results": resultados
         }), 200
     except Exception as e:
+        import traceback
+        traceback.print_exc() # Ajuda a debugar se houver erro no console do Python
         return jsonify({"error": str(e)}), 500
 
 @app.route('/files/<filename>', methods=['GET'])

@@ -60,10 +60,11 @@ Localizado no `app.py`, o sistema de memória utiliza o **ChromaDB**:
 2.  **Recuperação (`get_relevant_context`):** Antes de cada resposta do Gemini, o Ego faz uma busca vetorial no banco usando a pergunta do usuário e o contexto do editor como query.
 3.  **Threshold de Relevância:** Apenas documentos com distância vetorial menor que 1.5 são considerados, garantindo que o Ego não "alucine" com informações irrelevantes.
 
-### C. Workspace e Nexus Semântico
-No frontend (`App.jsx`), existe um monitoramento em tempo real do que o usuário escreve no editor:
-- **Semantic Lookup:** Um `useEffect` monitora o `workspaceText`. Se o usuário parar de digitar por 1.5s, o sistema consulta o backend para ver se existe algum conhecimento prévio relacionado àquele texto.
-- **Knowledge Dock:** Se uma correspondência for encontrada, a tag correspondente brilha na barra lateral (Nexus Semântico), indicando que o Ego "lembrou" de algo.
+### C. Workspace e Nexus Semântico (Telepatia)
+No frontend (`App.jsx` e `Writer.jsx`), o estado do texto que o usuário digita é ativamente compartilhado com o painel do EGO.
+- **Function Calling (Leitura Neural):** O EGO agora utiliza a API de Tools (Function Calling) do Gemini para acessar diretamente o que o usuário está redigindo sob demanda. A função `acionar_leitura_neural` provê o conteúdo do Editor ao LLM.
+- **Integração Indireta:** O Solipsys também puxa passivamente os últimos caracteres do rascunho como contexto de busca semântica, ativando memórias relevantes baseadas no que o usuário acabou de escrever.
+- **Utilitários de UI:** As estilizações e animações no frontend usam a função `cn` (Tailwind-merge + clsx) localizada em `src/lib/utils.js` para mesclar classes complexas dinamicamente.
 
 ---
 

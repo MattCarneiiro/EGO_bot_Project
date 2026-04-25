@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 
-export const Writer = () => {
-    const [text, setText] = useState('# EGO Canvas\n\nRedija seus pensamentos aqui...');
+export const Writer = ({ text, setText }) => {
     const [preview, setPreview] = useState(false);
 
     return (
         <div className="flex h-full w-full flex-col bg-slate-900/50 p-4">
             <div className="mb-4 flex items-center justify-between border-b border-white/10 pb-2">
-                <span className="font-mono text-xs uppercase tracking-widest text-blue-400">Editor Neural</span>
+                <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs uppercase tracking-widest text-blue-400">Editor Neural</span>
+                    <span className="font-mono text-[10px] text-green-400 opacity-70">(Sincronizado com EGO)</span>
+                </div>
                 <button
                     onClick={() => setPreview(!preview)}
                     className="rounded bg-blue-600/20 px-3 py-1 font-mono text-xs text-blue-400 transition-colors hover:bg-blue-600/40"
@@ -25,7 +27,7 @@ export const Writer = () => {
                     value={text}
                     onChange={(e) => setText(e.target.value)}
                     className="h-full w-full resize-none bg-transparent font-mono text-sm text-blue-100 outline-none"
-                    placeholder="Digite sua tese aqui..."
+                    placeholder="Digite sua tese aqui. Eu estou lendo..."
                 />
             )}
         </div>

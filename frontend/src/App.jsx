@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Reader } from './components/workspace/Reader';
 import { Writer } from './components/workspace/Writer';
 import { ChatPanel } from './components/chat/ChatPanel';
+import { cn } from './lib/utils';
 import './styles/theme.css';
 
 export default function App() {
@@ -13,8 +14,11 @@ export default function App() {
   const [currentPdf, setCurrentPdf] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [messages, setMessages] = useState([
-    { sender: 'EGO', text: 'Tailwind expurgado. CSS Puro ativado. Como procederemos?' }
+    { sender: 'EGO', text: 'Conexões telepáticas restabelecidas. Pode escrever o seu Pokémon.' }
   ]);
+
+  // ESTADO RESTAURADO: O App agora controla e compartilha o texto
+  const [draftText, setDraftText] = useState('# EGO Canvas\n\nRedija seus pensamentos aqui...');
 
   useEffect(() => {
     setTimeout(() => setBooting(false), 2000);
@@ -29,9 +33,9 @@ export default function App() {
 
   if (booting) {
     return (
-      <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', background: '#000' }}>
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="font-mono" style={{ color: '#4ade80' }}>
-          [ EGO_KERNEL v0.4 ] COMPILING VANILLA CSS...
+      <div className="flex h-screen w-screen items-center justify-center bg-black font-mono">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-xl tracking-widest text-green-500">
+          [ EGO_KERNEL v0.6 ] CONNECTING TELEPATHY...
         </motion.div>
       </div>
     );
@@ -39,46 +43,55 @@ export default function App() {
 
   return (
     <div
-      className="flex h-screen w-screen overflow-hidden bg-black p-2 gap-2"
+      className="flex h-screen w-screen gap-2 overflow-hidden bg-black p-2"
       onMouseDown={(e) => setFocus(e.clientX < window.innerWidth / 2 ? 'workspace' : 'chat')}
     >
-      {/* PAINEL ESQUERDO: WORKSPACE */}
       <motion.section
-        className="glass-panel relative rounded-xl border border-blue-500/30 overflow-hidden flex flex-col"
+        className="glass-panel flex flex-col overflow-hidden rounded-xl border-blue-500/30"
         animate={{ flex: focus === 'workspace' ? 3 : focus === 'chat' ? 0.8 : 1 }}
         transition={{ type: 'spring', stiffness: 120, damping: 20 }}
       >
-        <div className="flex gap-2 p-2 font-mono border-b border-blue-500/30 bg-black/40">
+        <div className="flex border-b border-white/10 bg-black/80 font-mono">
           <button
             onClick={() => setMode('reader')}
-            className={`px-4 py-2 rounded-lg text-sm transition-colors ${mode === 'reader' ? 'bg-blue-600/30 text-blue-400 border border-blue-500/50' : 'text-slate-500 hover:text-slate-300'}`}
+            className={cn(
+              "flex-1 py-3 text-xs uppercase tracking-widest transition-all",
+              mode === 'reader' ? "border-b-2 border-blue-500 bg-blue-900/10 text-blue-400" : "text-slate-600 hover:bg-white/5 hover:text-slate-400"
+            )}
           >
             📖 Vault Reader
           </button>
           <button
             onClick={() => setMode('writer')}
-            className={`px-4 py-2 rounded-lg text-sm transition-colors ${mode === 'writer' ? 'bg-blue-600/30 text-blue-400 border border-blue-500/50' : 'text-slate-500 hover:text-slate-300'}`}
+            className={cn(
+              "flex-1 py-3 text-xs uppercase tracking-widest transition-all",
+              mode === 'writer' ? "border-b-2 border-blue-500 bg-blue-900/10 text-blue-400" : "text-slate-600 hover:bg-white/5 hover:text-slate-400"
+            )}
           >
             ✍️ EGO Canvas
           </button>
         </div>
 
-        <div style={{ flex: 1, overflow: 'hidden' }}>
+        <div className="flex-1 overflow-hidden">
           {mode === 'reader' ? (
             <Reader currentPdf={currentPdf} currentPage={currentPage} onPdfChange={handlePdfFocus} />
           ) : (
-            <Writer />
+            <Writer text={draftText} setText={setDraftText} />
           )}
         </div>
       </motion.section>
 
-      {/* PAINEL DIREITO: CHAT */}
       <motion.section
-        className="glass-panel relative rounded-xl border border-purple-500/30 overflow-hidden"
+        className="glass-panel flex flex-col overflow-hidden rounded-xl border-purple-500/20"
         animate={{ flex: focus === 'chat' ? 1.5 : focus === 'workspace' ? 0.4 : 1 }}
         transition={{ type: 'spring', stiffness: 120, damping: 20 }}
       >
-        <ChatPanel messages={messages} setMessages={setMessages} onFocusPdf={handlePdfFocus} />
+        <ChatPanel
+          messages={messages}
+          setMessages={setMessages}
+          onFocusPdf={handlePdfFocus}
+          draftText={draftText}
+        />
       </motion.section>
     </div>
   );
