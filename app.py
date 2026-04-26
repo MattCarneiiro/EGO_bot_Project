@@ -29,11 +29,17 @@ os.makedirs(TEMP_UPLOAD_DIR, exist_ok=True)
 os.makedirs("./ego_brain/pdfs", exist_ok=True)
 
 # --- A DIRETRIZ DE INTELIGÊNCIA HÍBRIDA + FUNCTION CALLING ---
-def gerar_resposta_agente_ego(pergunta, historico, resultados_solipsys, rascunho):
+def gerar_resposta_agente_ego(pergunta, historico, resultados_solipsys, rascunho, ancoras):
     contexto_documentos = ""
     if resultados_solipsys:
         for i, res in enumerate(resultados_solipsys, 1):
             contexto_documentos += f"[DocID: {res['metadata']['doc_id']} | Pág: {res['metadata']['page']}]: {res['text']}\n"
+            
+    contexto_ancoras = ""
+    if ancoras:
+        contexto_ancoras = "O Criador marcou os seguintes trechos como VITAIS (Âncoras Manuais):\n"
+        for anc in ancoras:
+            contexto_ancoras += f"- [Doc: {anc.get('docId')}, Pág: {anc.get('page')}]: {anc.get('text')}\n"
 
     historico_str = "\n".join([f"{m['role']}: {m['content']}" for m in historico[-6:]])
 
@@ -81,12 +87,15 @@ def gerar_resposta_agente_ego(pergunta, historico, resultados_solipsys, rascunho
     DADOS DO BANCO SOLIPSYS (EVIDÊNCIAS INDIRETAS):
     {contexto_documentos if contexto_documentos else "Nenhum dado encontrado para a busca."}
     
+    {contexto_ancoras}
+    
     REGRAS GERAIS:
     1. Responda à pergunta do Criador mantendo sua personalidade letal e precisa.
     2. ECONOMIA DE TOKENS: Você NÃO TEM ACESSO ao texto do editor do Criador por padrão.
     3. Se o Criador pedir para você ler ou revisar o texto dele, USE A FERRAMENTA 'acionar_leitura_neural'.
     4. Se você achar que o texto precisa ser alterado, USE A FERRAMENTA 'sugerir_alteracao_texto'.
     5. Sugira as informações do BANCO SOLIPSYS se elas complementarem o assunto.
+    6. O Criador forneceu 'Âncoras Manuais' acima. Se forem relevantes para a pergunta dele, refira-se a elas explicitamente, pois são os trechos que ele considerou vitais em sua pesquisa.
     """
     
     # 3. O CHAT AUTOMÁTICO
@@ -142,6 +151,24 @@ def save_and_ingest():
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
+@app.route('/add_anchor', methods=['POST'])
+def add_anchor_route():
+    data = request.json
+    doc_id = data.get('doc_id', '').replace('.pdf', '')
+    text = data.get('text')
+    page = data.get('page', 1)
+    
+    if not text:
+        return jsonify({"error": "Texto ausente"}), 400
+        
+    try:
+        vault.create_anchor(doc_id=doc_id, text=text, tags=["#UserAnchor"], page=page)
+        return jsonify({"status": "success"}), 200
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
 # --- ROTA DE COMUNICAÇÃO ---
 @app.route('/ask', methods=['POST'])
 def ask_ego():
@@ -149,6 +176,7 @@ def ask_ego():
     pergunta = data.get('query')
     historico = data.get('history', [])
     rascunho = data.get('draft', '')
+    ancoras = data.get('anchors', [])
     
     if not pergunta:
         return jsonify({"error": "Mensagem vazia."}), 400
@@ -159,7 +187,7 @@ def ask_ego():
         
         resultados = vault.search_semantic(query=busca_aprimorada, n_results=3, threshold=1.4)
         
-        fala_do_ego, sugestao = gerar_resposta_agente_ego(pergunta, historico, resultados, rascunho)
+        fala_do_ego, sugestao = gerar_resposta_agente_ego(pergunta, historico, resultados, rascunho, ancoras)
 
         response_data = {
             "status": "success",
