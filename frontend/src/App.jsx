@@ -10,21 +10,91 @@ import './styles/theme.css';
 export default function App() {
   const [booting, setBooting] = useState(true);
   const [focus, setFocus] = useState('initial');
-  const [mode, setMode] = useState('reader');
+  const [mode, setMode] = useState(() => {
+    return localStorage.getItem('ego_workspace_mode') || 'reader';
+  });
 
-  const [openDocuments, setOpenDocuments] = useState([]);
-  const [activeDocId, setActiveDocId] = useState(null);
+  const [openDocuments, setOpenDocuments] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ego_open_docs');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error("Failed to parse open docs", e);
+    }
+    return [];
+  });
   
-  const [messages, setMessages] = useState([
-    { sender: 'EGO', text: 'Conexões telepáticas restabelecidas. Pode escrever o seu texto.' }
-  ]);
-  const [draftText, setDraftText] = useState('# EGO Canvas\n\nRedija seus pensamentos aqui...');
+  const [activeDocId, setActiveDocId] = useState(() => {
+    return localStorage.getItem('ego_active_doc') || null;
+  });
+  
+  const [messages, setMessages] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ego_chat_history');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error("Failed to parse chat history", e);
+    }
+    return [{ sender: 'EGO', text: 'Conexões telepáticas restabelecidas. Pode escrever o seu texto.' }];
+  });
+  
+  const [draftText, setDraftText] = useState(() => {
+    return localStorage.getItem('ego_draft_text') || '# EGO Canvas\n\nRedija seus pensamentos aqui...';
+  });
   const [suggestion, setSuggestion] = useState(null);
   const [suggestedPdfs, setSuggestedPdfs] = useState([]);
 
   useEffect(() => {
     setTimeout(() => setBooting(false), 2000);
   }, []);
+
+  useEffect(() => {
+    const safeMessages = messages.map(m => {
+      if (typeof m.text === 'string') return m;
+      let extracted = "Interação recuperada.";
+      try {
+        if (m.text?.props?.children?.props?.children) {
+          extracted = m.text.props.children.props.children;
+        }
+      } catch (e) {}
+      return { sender: m.sender, text: extracted };
+    });
+    localStorage.setItem('ego_chat_history', JSON.stringify(safeMessages));
+  }, [messages]);
+
+  useEffect(() => {
+    localStorage.setItem('ego_draft_text', draftText);
+  }, [draftText]);
+
+  useEffect(() => {
+    localStorage.setItem('ego_workspace_mode', mode);
+  }, [mode]);
+
+  useEffect(() => {
+    localStorage.setItem('ego_open_docs', JSON.stringify(openDocuments));
+  }, [openDocuments]);
+
+  useEffect(() => {
+    if (activeDocId) {
+      localStorage.setItem('ego_active_doc', activeDocId);
+    } else {
+      localStorage.removeItem('ego_active_doc');
+    }
+  }, [activeDocId]);
+
+  const clearSession = () => {
+    localStorage.removeItem('ego_chat_history');
+    localStorage.removeItem('ego_draft_text');
+    localStorage.removeItem('ego_workspace_mode');
+    localStorage.removeItem('ego_open_docs');
+    localStorage.removeItem('ego_active_doc');
+    
+    setMessages([{ sender: 'EGO', text: 'Conexões telepáticas restabelecidas. Pode escrever o seu texto.' }]);
+    setDraftText('# EGO Canvas\n\nRedija seus pensamentos aqui...');
+    setMode('reader');
+    setOpenDocuments([]);
+    setActiveDocId(null);
+  };
 
   const handlePdfFocus = (pdfName, pageNum) => {
     setOpenDocuments(prev => {
@@ -150,6 +220,7 @@ export default function App() {
           draftText={draftText}
           setSuggestion={setSuggestion}
           setSuggestedPdfs={setSuggestedPdfs}
+          onClearSession={clearSession}
         />
       </motion.section>
     </div>

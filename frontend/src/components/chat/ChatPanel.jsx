@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
-import { Terminal, Send, Activity } from 'lucide-react';
+import { Terminal, Send, Activity, Trash2 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 const API_URL = 'http://localhost:5000';
 
-export const ChatPanel = ({ messages, setMessages, onFocusPdf, draftText }) => {
+export const ChatPanel = ({ messages, setMessages, onFocusPdf, draftText, setSuggestion, setSuggestedPdfs, onClearSession }) => {
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
     const endOfMessagesRef = useRef(null);
@@ -62,12 +62,19 @@ export const ChatPanel = ({ messages, setMessages, onFocusPdf, draftText }) => {
         <div className="flex h-full flex-col bg-[#0a0a0f] p-4">
             <header className="mb-4 flex items-center gap-3 border-b border-white/5 pb-4">
                 <Terminal className="text-purple-500" />
-                <div>
+                <div className="flex-1">
                     <h1 className="font-mono text-sm font-bold tracking-widest text-white">EGO_KERNEL</h1>
                     <span className="flex items-center gap-1 font-mono text-[10px] text-green-400">
                         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" /> Online
                     </span>
                 </div>
+                <button 
+                    onClick={onClearSession}
+                    title="Nova Linha Temporal (Reset)"
+                    className="p-2 text-slate-500 transition-colors hover:text-red-400"
+                >
+                    <Trash2 size={16} />
+                </button>
             </header>
 
             <div className="scrollbar-thin flex-1 space-y-6 overflow-y-auto pr-2">
