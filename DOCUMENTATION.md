@@ -60,11 +60,13 @@ Localizado no `app.py`, o sistema de memória utiliza o **ChromaDB**:
 2.  **Recuperação (`get_relevant_context`):** Antes de cada resposta do Gemini, o Ego faz uma busca vetorial no banco usando a pergunta do usuário e o contexto do editor como query.
 3.  **Threshold de Relevância:** Apenas documentos com distância vetorial menor que 1.5 são considerados, garantindo que o Ego não "alucine" com informações irrelevantes.
 
-### C. Workspace e Nexus Semântico (Telepatia)
-No frontend (`App.jsx` e `Writer.jsx`), o estado do texto que o usuário digita é ativamente compartilhado com o painel do EGO.
-- **Function Calling (Leitura Neural):** O EGO agora utiliza a API de Tools (Function Calling) do Gemini para acessar diretamente o que o usuário está redigindo sob demanda. A função `acionar_leitura_neural` provê o conteúdo do Editor ao LLM.
-- **Integração Indireta:** O Solipsys também puxa passivamente os últimos caracteres do rascunho como contexto de busca semântica, ativando memórias relevantes baseadas no que o usuário acabou de escrever.
-- **Utilitários de UI:** As estilizações e animações no frontend usam a função `cn` (Tailwind-merge + clsx) localizada em `src/lib/utils.js` para mesclar classes complexas dinamicamente.
+### C. Workspace e Nexus Semântico (Telepatia e Telecinese)
+No frontend, o EGO possui acesso total e dinâmico ao que o usuário lê e escreve:
+- **Telepatia (Leitura Neural):** O EGO utiliza a API de Tools do Gemini (`acionar_leitura_neural`) para ler diretamente o conteúdo do Editor Canvas.
+- **Telecinese (Diff Mode):** O EGO pode usar a ferramenta `sugerir_alteracao_texto` para reescrever ou sugerir blocos de texto. O painel do `Writer.jsx` entra em "Modo de Revisão", oferecendo botões de "Aceitar" ou "Rejeitar" a sobreposição visual gerada.
+- **Auto-Arquivamento:** O Editor Neural conta com um botão "Arquivar e Ingerir", que salva o markdown atual como um PDF via backend (`/save_and_ingest`), força a ingestão no Solipsys e baixa o documento para o usuário, automatizando a criação de memórias persistentes.
+- **Leitor Multi-Abas:** O `Reader.jsx` agora gerencia múltiplas abas de PDFs simultaneamente, permitindo ao usuário navegar por várias memórias abertas e fechá-las sob demanda.
+- **Painel de Epifania:** Uma terceira coluna condicional (gerida pelo Framer Motion) que se expande quando o backend retorna evidências do Solipsys. Ela exibe "Cards de Evidência", que quando clicados, adicionam aquele documento diretamente às abas do Leitor.
 
 ---
 

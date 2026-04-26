@@ -33,31 +33,21 @@ export const ChatPanel = ({ messages, setMessages, onFocusPdf, draftText }) => {
                 history: currentHistory,
                 draft: draftText // <- A TELEPATIA ACONTECE AQUI
             });
-            const { answer, results } = response.data;
+            const { answer, results, suggestion } = response.data;
+
+            if (suggestion) {
+                setSuggestion(suggestion);
+            }
+
+            if (results && results.length > 0) {
+                setSuggestedPdfs(results);
+            } else {
+                setSuggestedPdfs([]);
+            }
 
             const richResponse = (
                 <div className="flex flex-col gap-3">
                     <p className="whitespace-pre-wrap leading-relaxed text-slate-200">{answer}</p>
-
-                    {results && results.length > 0 && (
-                        <div className="mt-2 border-t border-purple-500/20 pt-3">
-                            <span className="mb-2 block flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-purple-400/70">
-                                <Activity size={12} /> Evidências Físicas
-                            </span>
-                            {results.map((res, idx) => (
-                                <div
-                                    key={idx}
-                                    onClick={() => onFocusPdf(`${res.metadata.doc_id}.pdf`, res.metadata.page)}
-                                    className="group mb-2 cursor-pointer rounded border border-purple-500/20 bg-purple-900/10 p-3 transition-all hover:border-purple-500/50 hover:bg-purple-900/30"
-                                >
-                                    <p className="mb-2 text-xs leading-relaxed italic text-slate-300">"{res.text.substring(0, 90)}..."</p>
-                                    <span className="font-mono text-[10px] text-purple-400 group-hover:text-purple-300">
-                                        📄 Pág {res.metadata.page} | {res.metadata.tags}
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                    )}
                 </div>
             );
 
